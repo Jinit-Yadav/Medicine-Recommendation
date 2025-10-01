@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personalized Medical Recommendation System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            padding: 20px;
+        }
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+        }
+        .symptom-tag {
+            background: #e9ecef;
+            border-radius: 20px;
+            padding: 5px 15px;
+            margin: 5px;
+            display: inline-block;
+        }
+        .result-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 10px 0;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card">
+                    <div class="card-header text-center">
+                        <h1 class="display-6 mb-0">🩺 Personalized Medical Recommendation System</h1>
+                        <p class="mb-0">AI-powered health analysis and recommendations</p>
+                    </div>
+                    <div class="card-body p-4">
+                        <!-- Symptoms Selection -->
+                        <div class="mb-4">
+                            <label for="symptomsSelect" class="form-label fw-bold">Select Your Symptoms:</label>
+                            <select id="symptomsSelect" class="form-select" multiple="multiple" style="width: 100%">
+                                <!-- Options will be populated by JavaScript -->
+                            </select>
+                        </div>
+
+                        <!-- Selected Symptoms -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Selected Symptoms:</label>
+                            <div id="selectedSymptoms" class="d-flex flex-wrap">
+                                <span class="text-muted">No symptoms selected</span>
+                            </div>
+                        </div>
+
+                        <!-- Predict Button -->
+                        <div class="text-center mb-4">
+                            <button id="predictBtn" class="btn btn-primary btn-lg">
+                                🔍 Analyze Symptoms & Get Recommendations
+                            </button>
+                        </div>
+
+                        <!-- Loading Spinner -->
+                        <div id="loading" class="loading">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Analyzing symptoms and generating recommendations...</p>
+                        </div>
+
+                        <!-- Results Section -->
+                        <div id="results" style="display: none;">
+                            <!-- Results will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            // Initialize Select2
+            $('#symptomsSelect').select2({
+                placeholder: "Type to search and select symptoms...",
+                allowClear: true,
+                width: '100%'
+            });
+
+            // Load symptoms from backend
+            $.get('/symptoms', function(symptoms) {
+                symptoms.forEach(function(symptom) {
+                    $('#symptomsSelect').append(new Option(symptom.replace(/_/g, ' '), symptom));
+                });
+            });
+
+            // Update selected symptoms display
+            $('#symptomsSelect').on('change', function() {
+                const selected = $(this).val();
+                const container = $('#selectedSymptoms');
+                
+                if (selected && selected.length > 0) {
+                    container.empty();
+                    selected.forEach(function(symptom) {
+                        container.append(
+                            `<span class="symptom-tag">${symptom.replace(/_/g, ' ')}</span>`
+                        );
+                    });
+                } else {
+                    container.html('<span class="text-muted">No symptoms selected</span>');
+                }
+            });
+
+            // Handle prediction
+            $('#predictBtn').click(function() {
+                const symptoms = $('#symptomsSelect').val();
+                
+                if (!symptoms || symptoms.length === 0) {
+                    alert('Please select at least one symptom.');
+                    return;
+                }
+
+                // Show loading
+                $('#loading').show();
+                $('#results').hide();
+
+                // Make prediction request
+                $.ajax({
+                    url: '/predict',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ symptoms: symptoms }),
+                    success: function(response) {
+                        $('#loading').hide();
+                        displayResults(response);
+                    },
+                    error: function(xhr, status, error) {
+                        $('#loading').hide();
+                        alert('Error: ' + error);
+                    }
+                });
+            });
+
+            function displayResults(data) {
+                if (data.error) {
+                    $('#results').html(`
+                        <div class="alert alert-danger">
+                            <strong>Error:</strong> ${data.error}
+                        </div>
+                    `).show();
+                    return;
+                }
+
+                const resultsHtml = `
+                    <div class="result-section">
+                        <h3 class="text-primary">🎯 Predicted Disease</h3>
+                        <h4 class="text-dark">${data.disease}</h4>
+                    </div>
+
+                    <div class="result-section">
+                        <h4 class="text-primary">📝 Description</h4>
+                        <p class="mb-0">${data.description || 'No description available.'}</p>
+                    </div>
+
+                    <div class="result-section">
+                        <h4 class="text-primary">🛡️ Precautions</h4>
+                        ${data.precautions && data.precautions.length > 0 ? 
+                            '<ul class="list-group">' + 
+                            data.precautions.map((precaution, index) => 
+                                `<li class="list-group-item">${index + 1}. ${precaution}</li>`
+                            ).join('') + '</ul>' : 
+                            '<p>No precautions available.</p>'
+                        }
+                    </div>
+
+                    <div class="result-section">
+                        <h4 class="text-primary">💊 Medications</h4>
+                        ${data.medications && data.medications.length > 0 ? 
+                            '<ul class="list-group">' + 
+                            data.medications.map((medication, index) => 
+                                `<li class="list-group-item">${index + 1}. ${medication}</li>`
+                            ).join('') + '</ul>' : 
+                            '<p>No medications available.</p>'
+                        }
+                    </div>
+
+                    <div class="result-section">
+                        <h4 class="text-primary">🥗 Recommended Diets</h4>
+                        ${data.diets && data.diets.length > 0 ? 
+                            '<ul class="list-group">' + 
+                            data.diets.map((diet, index) => 
+                                `<li class="list-group-item">${index + 1}. ${diet}</li>`
+                            ).join('') + '</ul>' : 
+                            '<p>No diet recommendations available.</p>'
+                        }
+                    </div>
+
+                    <div class="result-section">
+                        <h4 class="text-primary">💪 Workout Recommendations</h4>
+                        ${data.workouts && data.workouts.length > 0 ? 
+                            '<ul class="list-group">' + 
+                            data.workouts.map((workout, index) => 
+                                `<li class="list-group-item">${index + 1}. ${workout}</li>`
+                            ).join('') + '</ul>' : 
+                            '<p>No workout recommendations available.</p>'
+                        }
+                    </div>
+
+                    <div class="alert alert-info mt-3">
+                        <strong>⚠️ Important:</strong> This is an AI-powered recommendation system. 
+                        Please consult with a healthcare professional for accurate diagnosis and treatment.
+                    </div>
+                `;
+
+                $('#results').html(resultsHtml).show();
+            }
+        });
+    </script>
+</body>
+</html>
